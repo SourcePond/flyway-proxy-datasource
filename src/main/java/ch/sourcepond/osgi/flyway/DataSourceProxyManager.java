@@ -27,15 +27,12 @@ class DataSourceProxyManager implements FindHook, EventListenerHook {
     private static final Logger LOG = getLogger(DataSourceProxyManager.class);
     private static final String FLYWAY_PROXY = "_$FLYWAY_proxy_$";
     private final Map<ServiceReference<?>, ServiceRegistration<?>> wrappedReferences = new ConcurrentHashMap<>();
-    private final ProxyFactory proxyFactory;
-    private final MigrationTask task;
+    private final MigrationManager migrationManager;
     private final BundleContext thisContext;
 
-    public DataSourceProxyManager(final ProxyFactory pProxyFactory,
-                                  final MigrationTask pTask,
+    public DataSourceProxyManager(final MigrationManager pMigrationManager,
                                   final BundleContext pThisContext) {
-        proxyFactory = pProxyFactory;
-        task = pTask;
+        migrationManager = pMigrationManager;
         thisContext = pThisContext;
     }
 
@@ -102,15 +99,14 @@ class DataSourceProxyManager implements FindHook, EventListenerHook {
                 isNotThis(serviceReference.getBundle().getBundleContext())) {
             switch (event.getType()) {
                 case REGISTERED: {
+                    final DataSource wrapped = (DataSource) thisContext.getService(serviceReference);
 
                     // Create a proxy for the DataSource and register it as service. Additionally, keep track of the
                     // original service. This is necessary to unget the original service and unregister the proxy when
                     // the original service is being unregistered.
                     wrappedReferences.put(serviceReference,
                             thisContext.registerService(DataSource.class,
-                                    proxyFactory.createProxy(
-                                            (DataSource) thisContext.getService(serviceReference),
-                                            task),
+                                    migrationManager.startMigration(wrapped),
                                     buildProxyProperties(serviceReference)));
 
                     // Nobody should receive a reference to the original service!
