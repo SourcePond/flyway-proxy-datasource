@@ -18,7 +18,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static java.lang.String.valueOf;
 import static org.osgi.framework.Constants.OBJECTCLASS;
-import static org.osgi.framework.Constants.SYSTEM_BUNDLE_ID;
 import static org.osgi.framework.ServiceEvent.REGISTERED;
 import static org.osgi.framework.ServiceEvent.UNREGISTERING;
 import static org.slf4j.LoggerFactory.getLogger;
@@ -26,6 +25,10 @@ import static org.slf4j.LoggerFactory.getLogger;
 class DataSourceProxyManager implements FindHook, EventListenerHook {
     private static final Logger LOG = getLogger(DataSourceProxyManager.class);
     private static final String FLYWAY_PROXY = "_$FLYWAY_proxy_$";
+
+    // See OSGi compendium release 7, 125.5.2.2
+    private static final String JDBC_DATASOURCE_NAME = "dataSourceName";
+
     private final Map<ServiceReference<?>, ServiceRegistration<?>> wrappedReferences = new ConcurrentHashMap<>();
     private final MigrationManager migrationManager;
     private final BundleContext thisContext;
@@ -47,14 +50,6 @@ class DataSourceProxyManager implements FindHook, EventListenerHook {
         return false;
     }
 
-    private static boolean isNotSystemBundle(final BundleContext pBundleContext) {
-        return pBundleContext.getBundle().getBundleId() != SYSTEM_BUNDLE_ID;
-    }
-
-    private static boolean isNotProxy(final ServiceReference<?> pReference) {
-        return pReference.getProperty(FLYWAY_PROXY) == null;
-    }
-
     private boolean isNotThis(final BundleContext pBundleContext) {
         return !thisContext.equals(pBundleContext);
     }
@@ -74,7 +69,7 @@ class DataSourceProxyManager implements FindHook, EventListenerHook {
                      final String filter,
                      final boolean allServices,
                      final Collection<ServiceReference<?>> references) {
-        if (isDataSource(name) && isNotThis(context) && isNotSystemBundle(context)) {
+        if (isDataSource(name) && isNotThis(context)) {
             for (final Iterator<ServiceReference<?>> it = references.iterator(); it.hasNext(); ) {
                 final ServiceReference<?> ref = it.next();
                 if (ref.getProperty(FLYWAY_PROXY) == null) {
@@ -94,11 +89,10 @@ class DataSourceProxyManager implements FindHook, EventListenerHook {
         final ServiceReference<?> serviceReference = event.getServiceReference();
         final String[] classNames = (String[]) serviceReference.getProperty(OBJECTCLASS);
 
-        if (isDataSource(classNames) &&
-                isNotProxy(serviceReference) &&
-                isNotThis(serviceReference.getBundle().getBundleContext())) {
+        if (isDataSource(classNames) && isNotThis(serviceReference.getBundle().getBundleContext())) {
             switch (event.getType()) {
                 case REGISTERED: {
+                    final String datasourceName = (String) serviceReference.getProperty(JDBC_DATASOURCE_NAME);
                     final DataSource wrapped = (DataSource) thisContext.getService(serviceReference);
 
                     // Create a proxy for the DataSource and register it as service. Additionally, keep track of the
@@ -106,7 +100,7 @@ class DataSourceProxyManager implements FindHook, EventListenerHook {
                     // the original service is being unregistered.
                     wrappedReferences.put(serviceReference,
                             thisContext.registerService(DataSource.class,
-                                    migrationManager.startMigration(wrapped),
+                                    migrationManager.startMigration(wrapped, datasourceName),
                                     buildProxyProperties(serviceReference)));
 
                     // Nobody should receive a reference to the original service!

@@ -13,7 +13,7 @@ import static org.slf4j.LoggerFactory.getLogger;
 final class MigrationTask extends Thread {
     private static final Logger LOG = getLogger(MigrationTask.class);
     private final Flyway flyway;
-    private volatile boolean migrate;
+    private volatile boolean migrate = true;
     private volatile SQLException migrationFailure;
 
     public MigrationTask(final Flyway pFlyway) {
@@ -44,8 +44,9 @@ final class MigrationTask extends Thread {
     public void run() {
         try {
             int successfulMigrationCount = flyway.migrate();
-            LOG.info("Successfully applied {0} migrations", successfulMigrationCount);
+            LOG.info("Successfully applied {} migrations", successfulMigrationCount);
         } catch (final FlywayException e) {
+            LOG.error(e.getMessage(), e);
             migrationFailure = new SQLException(e.getMessage(), e);
         } finally {
             migrate = false;

@@ -6,10 +6,11 @@ import org.osgi.framework.hooks.service.EventListenerHook;
 import org.osgi.framework.hooks.service.FindHook;
 
 public class Activator implements BundleActivator {
-    private final MigrationManager migrationManager = new MigrationManager();
+    private MigrationManager migrationManager;
 
     @Override
     public void start(final BundleContext context) {
+        migrationManager = new MigrationManager(context);
         context.registerService(new String[]{
                         FindHook.class.getName(),
                         EventListenerHook.class.getName()},
