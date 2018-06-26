@@ -36,7 +36,7 @@ allprojects {
         testCompile 'org.mockito:mockito-core:2.19.0'
         testCompile 'org.objenesis:objenesis:2.6'
         testCompile "net.bytebuddy:byte-buddy:$byteBuddyVersion"
-        testCompile "net.bytebuddy:byte-buddy-agent:1.8.12:$byteBuddyVersion"
+        testCompile "net.bytebuddy:byte-buddy-agent:$byteBuddyVersion"
     }
 
     jar {
@@ -50,7 +50,7 @@ allprojects {
         // we need to generate a META-INF/maven/dependencies.properties file
         // just like the generate-depends-file Maven goal from ServiceMix/Karaf
 
-        File outputFileDir = project.file("${project.buildDir}/classes/java/integrationTest/META-INF/maven/")
+        File outputFileDir = project.file("${project.buildDir}/classes/java/test/META-INF/maven/")
         File outputFile = new File(outputFileDir, 'dependencies.properties')
 
         outputs.file outputFile
@@ -67,7 +67,7 @@ allprojects {
             properties.setProperty("${project.group}/${project.name}/version", "${project.version}");
 
             // then for all our deps
-            project.configurations.integrationTestRuntime.resolvedConfiguration.resolvedArtifacts.each {
+            project.configurations.testCompile.resolvedConfiguration.resolvedArtifacts.each {
                 final String keyBase = it.moduleVersion.id.group + '/' + it.moduleVersion.id.name;
                 properties.setProperty("${keyBase}/scope", "compile")
                 properties.setProperty("${keyBase}/type", it.extension)
@@ -91,6 +91,9 @@ allprojects {
     task copyIntegrationTestArtifacts(type: Copy) {
         from jar // here it automatically reads jar file produced from jar task
         into 'build/paxexam'
+        rename { String fileName ->
+            "examinee.jar"
+        }
     }
 
     test.dependsOn(assemble, generateDependsFile, copyIntegrationTestArtifacts)

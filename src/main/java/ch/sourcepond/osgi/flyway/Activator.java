@@ -18,14 +18,15 @@ public class Activator implements BundleActivator {
     private final Thread migrationThread;
 
     public Activator() {
-        this(new ProxyFactory(), new MigrationTask(new Flyway()));
-    }
-
-    // Constructor for testing
-    Activator(final ProxyFactory pProxyFactory, final MigrationTask pTask) {
-        proxyFactory = pProxyFactory;
-        task = pTask;
-        migrationThread = defaultThreadFactory().newThread(pTask);
+        final ClassLoader ldr = currentThread().getContextClassLoader();
+        currentThread().setContextClassLoader(Flyway.class.getClassLoader());
+        try {
+            proxyFactory = new ProxyFactory();
+            task = new MigrationTask(new Flyway());
+            migrationThread = defaultThreadFactory().newThread(task);
+        } finally {
+            currentThread().setContextClassLoader(ldr);
+        }
     }
 
     @Override
@@ -35,6 +36,7 @@ public class Activator implements BundleActivator {
                         FindHook.class.getName(),
                         EventListenerHook.class.getName()},
                 new DataSourceProxyManager(proxyFactory, task, context), null);
+
     }
 
     @Override
