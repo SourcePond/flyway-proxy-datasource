@@ -11,6 +11,7 @@ allprojects {
     ext {
         paxExamVersion = '4.11.0'
         logbackVersion = '1.1.3'
+        byteBuddyVersion = '1.8.12'
     }
 
     repositories {
@@ -23,17 +24,76 @@ allprojects {
         compile 'org.slf4j:slf4j-api:1.7.25'
         compile 'org.flywaydb:flyway-core:5.1.3'
 
-
         testCompile "org.ops4j.pax.exam:pax-exam-container-native:$paxExamVersion"
         testCompile "org.ops4j.pax.exam:pax-exam-junit4:$paxExamVersion"
         testCompile "org.ops4j.pax.exam:pax-exam-link-mvn:$paxExamVersion"
-        testCompile "org.ops4j.pax.url:pax-url-aether:$paxExamVersion"
+        testCompile "org.ops4j.pax.url:pax-url-aether:2.5.4"
         testCompile "org.apache.felix:org.apache.felix.framework:5.6.10"
         testCompile "ch.qos.logback:logback-core:$logbackVersion"
         testCompile "ch.qos.logback:logback-classic:$logbackVersion"
-
-        testCompile group: 'junit', name: 'junit', version: '4.12'
+        testCompile 'javax.inject:javax.inject:1'
+        testCompile 'junit:junit:4.12'
+        testCompile 'org.mockito:mockito-core:2.19.0'
+        testCompile 'org.objenesis:objenesis:2.6'
+        testCompile "net.bytebuddy:byte-buddy:$byteBuddyVersion"
+        testCompile "net.bytebuddy:byte-buddy-agent:1.8.12:$byteBuddyVersion"
     }
+
+    jar {
+        manifest {
+            attributes('Bundle-Activator': 'ch.sourcepond.osgi.flyway.Activator')
+        }
+    }
+
+    task generateDependsFile {
+        // In order to fully use org.ops4j.pax.exam.CoreOptions.maven() stuff
+        // we need to generate a META-INF/maven/dependencies.properties file
+        // just like the generate-depends-file Maven goal from ServiceMix/Karaf
+
+        File outputFileDir = project.file("${project.buildDir}/classes/java/integrationTest/META-INF/maven/")
+        File outputFile = new File(outputFileDir, 'dependencies.properties')
+
+        outputs.file outputFile
+
+        doFirst {
+            outputFileDir.mkdirs()
+
+            Properties properties = new Properties();
+
+            // first we add our GAV info
+            properties.setProperty("groupId", "${project.group}");
+            properties.setProperty("artifactId", project.name);
+            properties.setProperty("version", "${project.version}");
+            properties.setProperty("${project.group}/${project.name}/version", "${project.version}");
+
+            // then for all our deps
+            project.configurations.integrationTestRuntime.resolvedConfiguration.resolvedArtifacts.each {
+                final String keyBase = it.moduleVersion.id.group + '/' + it.moduleVersion.id.name;
+                properties.setProperty("${keyBase}/scope", "compile")
+                properties.setProperty("${keyBase}/type", it.extension)
+                properties.setProperty("${keyBase}/version", it.moduleVersion.id.version)
+
+                if (it.classifier) {
+                    properties.setProperty("${keyBase}/classifier", it.classifier)
+                }
+            }
+
+            FileOutputStream outputStream = new FileOutputStream(outputFile);
+            try {
+                properties.store(outputStream, "Generated from Gradle by Hibernate build for PaxExam testing of hibernate-osgi module")
+            }
+            finally {
+                outputStream.close()
+            }
+        }
+    }
+
+    task copyIntegrationTestArtifacts(type: Copy) {
+        from jar // here it automatically reads jar file produced from jar task
+        into 'build/paxexam'
+    }
+
+    test.dependsOn(assemble, generateDependsFile, copyIntegrationTestArtifacts)
 }
 
 buildscript {
