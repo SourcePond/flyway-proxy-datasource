@@ -43,8 +43,7 @@ final class MigrationTask extends Thread {
     @Override
     public void run() {
         try {
-            int successfulMigrationCount = flyway.migrate();
-            LOG.info("Successfully applied {} migrations", successfulMigrationCount);
+            flyway.migrate();
         } catch (final FlywayException e) {
             LOG.error(e.getMessage(), e);
             migrationFailure = new SQLException(e.getMessage(), e);

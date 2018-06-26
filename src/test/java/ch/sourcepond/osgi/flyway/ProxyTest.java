@@ -18,12 +18,16 @@ import java.io.File;
 import java.net.MalformedURLException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.Hashtable;
 import java.util.UUID;
 
 import static java.lang.String.format;
 import static java.lang.Thread.currentThread;
 import static java.lang.reflect.Proxy.isProxyClass;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.ops4j.pax.exam.CoreOptions.bundle;
 import static org.ops4j.pax.exam.CoreOptions.junitBundles;
@@ -46,8 +50,8 @@ public class ProxyTest {
 
     private static UrlProvisionOption sqlResourceBundle() throws MalformedURLException {
         return streamBundle(
-                bundle().add("db/test/V1__InitialDbSetup.sql",
-                        new File("src/test/resources/db/test/V1__InitialDbSetup.sql").toURI().toURL())
+                bundle().add("db/test/V1__InitialDbSetup.sql", new File("src/test/resources/db/test/V1__InitialDbSetup.sql").toURI().toURL())
+                        .add("db/test/V2__AddAdditionalTable.sql", new File("src/test/resources/db/test/V2__AddAdditionalTable.sql").toURI().toURL())
                         .set(BUNDLE_SYMBOLICNAME, "SQLTestResource")
                         .set(FRAGMENT_HOST, "org.flywaydb.core;bundle-version=5.1.3")
                         .build(withBnd()));
@@ -77,7 +81,7 @@ public class ProxyTest {
         currentThread().setContextClassLoader(getClass().getClassLoader());
         try {
             dataSource = new JdbcDataSource();
-            dataSource.setURL("jdbc:h2:~/test");
+            dataSource.setURL("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1");
             dataSource.setUser(TEST);
             dataSource.setPassword(TEST);
         } finally {
@@ -89,6 +93,22 @@ public class ProxyTest {
     @After
     public void tearDown() {
         bundleContext.removeServiceListener(listener);
+    }
+
+    private void insert(final Connection pConnection, final String pTableName, final String oid) throws SQLException {
+        try (final PreparedStatement stmt = pConnection.prepareStatement(format("INSERT INTO %s (OID) VALUES (?)", pTableName))) {
+            stmt.setString(1, oid);
+            stmt.executeUpdate();
+        }
+    }
+
+    private void verifyOid(final Connection pConnection, final String pTableName, final String expectedOid) throws SQLException {
+        try (final PreparedStatement stmt = pConnection.prepareStatement(format("SELECT OID FROM %s", pTableName))) {
+            ResultSet result = stmt.executeQuery();
+            result.next();
+            assertEquals(expectedOid, result.getString(1));
+            assertFalse(result.next());
+        }
     }
 
     @Test//(timeout = 10000)
@@ -103,12 +123,14 @@ public class ProxyTest {
         assertTrue(isProxyClass(proxy.getClass()));
 
         // Get a connection and check whether the test table has been created
-        final String oid = UUID.randomUUID().toString();
-        final Connection conn = proxy.getConnection();
-        final PreparedStatement stmt = conn.prepareStatement("INSERT INTO TEST_TABLE (OID) VALUES (?)");
-        stmt.setString(1, oid);
-        stmt.executeUpdate();
+        final String expectedOid1 = UUID.randomUUID().toString();
+        final String expectedOid2 = UUID.randomUUID().toString();
 
-        System.out.println(proxy);
+        try (final Connection conn = proxy.getConnection()) {
+            insert(conn, "TEST_TABLE", expectedOid1);
+            insert(conn, "TEST_TABLE_2", expectedOid2);
+            verifyOid(conn, "TEST_TABLE", expectedOid1);
+            verifyOid(conn, "TEST_TABLE_2", expectedOid2);
+        }
     }
 }

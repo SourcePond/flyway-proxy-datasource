@@ -98,6 +98,7 @@ allprojects {
         }
     }
 
+    test.outputs.upToDateWhen { false }
     test.dependsOn(assemble, generateDependsFile, copyIntegrationTestArtifacts)
 }
 
