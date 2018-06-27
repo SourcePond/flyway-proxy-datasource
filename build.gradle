@@ -2,6 +2,10 @@ allprojects {
     group 'ch.sourcepond.jdbc'
     version '0.1-SNAPSHOT'
 
+    apply plugin: 'signing'
+    apply plugin: 'net.researchgate.release'
+    apply plugin: 'io.codearte.nexus-staging'
+    apply plugin: 'org.sonarqube'
     apply plugin: 'java'
     apply plugin: 'maven'
     apply plugin: 'biz.aQute.bnd.builder'
@@ -98,15 +102,92 @@ allprojects {
         }
     }
 
+    // OSSRH
+    task javadocJar(type: Jar) {
+        classifier = 'javadoc'
+        from javadoc
+    }
+
+    task sourcesJar(type: Jar) {
+        classifier = 'sources'
+        from sourceSets.main.allSource
+    }
+
+    artifacts {
+        archives javadocJar, sourcesJar
+    }
+
+    signing {
+        sign configurations.archives
+    }
+
+    uploadArchives {
+        repositories {
+            mavenDeployer {
+                beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+                repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+                    authentication(userName: ossrhUsername, password: ossrhPassword)
+                }
+
+                snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
+                    authentication(userName: ossrhUsername, password: ossrhPassword)
+                }
+
+                pom.project {
+                    name 'Flyway Proxy Datasource'
+                    packaging 'jar'
+                    // optionally artifactId can be defined here
+                    description 'OSGi bundle which creates for any javax.sql.DataSource an appropriate proxy which wraps a Flyway DB-migration'
+                    url 'scm:git:https://github.com/SourcePond/flyway-proxy-datasource.git'
+
+                    scm {
+                        connection 'scm:git:https://github.com/SourcePond/flyway-proxy-datasource.git'
+                        developerConnection 'scm:git:ssh:git@github.com:SourcePond/flyway-proxy-datasource.git'
+                        url 'https://github.com/SourcePond/flyway-proxy-datasource.git'
+                    }
+
+                    licenses {
+                        license {
+                            name 'The Apache License, Version 2.0'
+                            url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                        }
+                    }
+
+                    developers {
+                        developer {
+                            id 'roland'
+                            name 'Roland Hauser'
+                            email 'sourcepond@gmail.com'
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    build.dependsOn install
+    afterReleaseBuild.dependsOn uploadArchives
+
     test.outputs.upToDateWhen { false }
     test.dependsOn(assemble, generateDependsFile, copyIntegrationTestArtifacts)
+}
+
+nexusStaging {
+    packageGroup 'ch.sourcepond'
 }
 
 buildscript {
     repositories {
         mavenCentral()
+        maven {
+            url 'https://plugins.gradle.org/m2/'
+        }
     }
     dependencies {
         classpath 'biz.aQute.bnd:biz.aQute.bnd.gradle:4.0.0'
+        classpath 'net.researchgate:gradle-release:2.6.0'
+        classpath 'io.codearte.gradle.nexus:gradle-nexus-staging-plugin:0.11.0'
+        classpath 'org.sonarsource.scanner.gradle:sonarqube-gradle-plugin:2.6.1'
     }
 }
