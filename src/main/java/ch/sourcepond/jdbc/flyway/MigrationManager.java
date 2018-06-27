@@ -1,19 +1,11 @@
-package ch.sourcepond.osgi.flyway;
+package ch.sourcepond.jdbc.flyway;
 
 import org.flywaydb.core.Flyway;
-import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
-import org.osgi.framework.wiring.BundleWiring;
 import org.slf4j.Logger;
 
 import javax.sql.DataSource;
 import java.io.Closeable;
-import java.net.URL;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 

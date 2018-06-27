@@ -1,4 +1,4 @@
-package ch.sourcepond.osgi.flyway;
+package ch.sourcepond.jdbc.flyway;
 
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceEvent;
@@ -113,6 +113,9 @@ class DataSourceProxyManager implements FindHook, EventListenerHook {
                     if (wrapperRegistration != null) {
                         wrapperRegistration.unregister();
                         thisContext.ungetService(serviceReference);
+
+                        // Nobody should receive an original service event!
+                        listeners.clear();
                     }
                     break;
                 }

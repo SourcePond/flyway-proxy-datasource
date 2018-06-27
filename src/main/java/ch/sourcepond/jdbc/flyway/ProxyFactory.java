@@ -1,4 +1,4 @@
-package ch.sourcepond.osgi.flyway;
+package ch.sourcepond.jdbc.flyway;
 
 import javax.sql.DataSource;
 

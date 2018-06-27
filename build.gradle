@@ -1,5 +1,5 @@
 allprojects {
-    group 'ch.sourcepond.osgi'
+    group 'ch.sourcepond.jdbc'
     version '0.1-SNAPSHOT'
 
     apply plugin: 'java'
@@ -43,7 +43,7 @@ allprojects {
 
     jar {
         manifest {
-            attributes('Bundle-Activator': 'ch.sourcepond.osgi.flyway.Activator')
+            attributes('Bundle-Activator': 'ch.sourcepond.jdbc.flyway.Activator')
         }
     }
 
@@ -107,6 +107,6 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'biz.aQute.bnd:biz.aQute.bnd.gradle:3.5.0'
+        classpath 'biz.aQute.bnd:biz.aQute.bnd.gradle:4.0.0'
     }
 }

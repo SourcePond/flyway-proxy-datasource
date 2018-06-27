@@ -1,4 +1,4 @@
-package ch.sourcepond.osgi.flyway;
+package ch.sourcepond.jdbc.flyway;
 
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.After;
@@ -10,7 +10,7 @@ import org.ops4j.pax.exam.Option;
 import org.ops4j.pax.exam.junit.PaxExam;
 import org.ops4j.pax.exam.options.UrlProvisionOption;
 import org.osgi.framework.BundleContext;
-import org.osgi.framework.Constants;
+import org.osgi.framework.ServiceRegistration;
 
 import javax.inject.Inject;
 import javax.sql.DataSource;
@@ -24,11 +24,9 @@ import java.util.Hashtable;
 import java.util.UUID;
 
 import static java.lang.String.format;
-import static java.lang.Thread.currentThread;
-import static java.lang.reflect.Proxy.isProxyClass;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNull;
 import static org.ops4j.pax.exam.CoreOptions.bundle;
 import static org.ops4j.pax.exam.CoreOptions.junitBundles;
 import static org.ops4j.pax.exam.CoreOptions.mavenBundle;
@@ -47,13 +45,14 @@ public class ProxyTest {
     @Inject
     private BundleContext bundleContext;
     private JdbcDataSource dataSource;
+    private ServiceRegistration<DataSource> registration;
 
     private static UrlProvisionOption sqlResourceBundle() throws MalformedURLException {
         return streamBundle(
                 bundle().add("db/test/V1__InitialDbSetup.sql", new File("src/test/resources/db/test/V1__InitialDbSetup.sql").toURI().toURL())
                         .add("db/test/V2__AddAdditionalTable.sql", new File("src/test/resources/db/test/V2__AddAdditionalTable.sql").toURI().toURL())
                         .set(BUNDLE_SYMBOLICNAME, "SQLTestResource")
-                        .set(FRAGMENT_HOST, "org.flywaydb.core;bundle-version=5.1.3")
+                        .set(FRAGMENT_HOST, "org.flywaydb.core")
                         .build(withBnd()));
     }
 
@@ -77,22 +76,23 @@ public class ProxyTest {
 
     @Before
     public void setup() throws Exception {
-        final ClassLoader ldr = currentThread().getContextClassLoader();
-        currentThread().setContextClassLoader(getClass().getClassLoader());
-        try {
-            dataSource = new JdbcDataSource();
-            dataSource.setURL("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1");
-            dataSource.setUser(TEST);
-            dataSource.setPassword(TEST);
-        } finally {
-            currentThread().setContextClassLoader(ldr);
-        }
+        dataSource = new JdbcDataSource();
+        dataSource.setURL("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1");
+        dataSource.setUser(TEST);
+        dataSource.setPassword(TEST);
         bundleContext.addServiceListener(listener, format("(%s=%s)", OBJECTCLASS, DataSource.class.getName()));
+        registerService();
     }
 
     @After
     public void tearDown() {
         bundleContext.removeServiceListener(listener);
+    }
+
+    private void registerService() {
+        final Hashtable<String, Object> properties = new Hashtable<>();
+        properties.put("dataSourceName", TEST);
+        registration = bundleContext.registerService(DataSource.class, dataSource, properties);
     }
 
     private void insert(final Connection pConnection, final String pTableName, final String oid) throws SQLException {
@@ -111,16 +111,24 @@ public class ProxyTest {
         }
     }
 
-    @Test//(timeout = 10000)
-    public void verifyTest() throws Exception {
-        // Register service
-        final Hashtable<String, Object> properties = new Hashtable<>();
-        properties.put("dataSourceName", TEST);
-        bundleContext.registerService(DataSource.class, dataSource, properties);
+    @Test(timeout = 5000)
+    public void verifyProxyRegistration() throws Exception {
+        // Unregister proxy
+        registration.unregister();
+        listener.awaitUnregistration();
 
+        // Insure no service is available
+        assertNull(bundleContext.getServiceReference(DataSource.class));
+
+        // Register service again
+        registerService();
+        verifyDbMigration();
+    }
+
+    @Test(timeout = 5000)
+    public void verifyDbMigration() throws Exception {
         // Await DataSource proxy and check if it's a proxy
         final DataSource proxy = listener.awaitDataSource();
-        assertTrue(isProxyClass(proxy.getClass()));
 
         // Get a connection and check whether the test table has been created
         final String expectedOid1 = UUID.randomUUID().toString();
