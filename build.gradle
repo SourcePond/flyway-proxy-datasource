@@ -156,6 +156,16 @@ artifacts {
 }
 
 publishing {
+    repositories {
+        maven {
+            url "${project.version.endsWith('-SNAPSHOT') ? ossrhSnapshotUrl : ossrhReleaseUrl}"
+            credentials {
+                username ossrhUsername
+                password ossrhPassword
+            }
+        }
+    }
+
     publications {
         mavenJava(MavenPublication) {
             from components.java
