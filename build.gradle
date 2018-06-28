@@ -210,6 +210,11 @@ signing {
     sign configurations.archives
 }
 
+test {
+    outputs.upToDateWhen { false }
+    dependsOn(assemble, generateDependsFile, copyIntegrationTestArtifacts)
+}
+
 model {
     tasks.publishMavenJavaPublicationToMavenLocal {
         dependsOn project.tasks.withType(Sign)
@@ -219,15 +224,12 @@ model {
     }
 }
 
-afterReleaseBuild.dependsOn uploadArchives
-
-test.outputs.upToDateWhen { false }
-test.dependsOn(assemble, generateDependsFile, copyIntegrationTestArtifacts)
-
-
 nexusStaging {
     packageGroup 'ch.sourcepond'
 }
+
+// Upload artifacts to remote Maven repository
+afterReleaseBuild.dependsOn publish
 
 buildscript {
     repositories {
@@ -238,7 +240,7 @@ buildscript {
     }
     dependencies {
         classpath 'biz.aQute.bnd:biz.aQute.bnd.gradle:4.0.0'
-        classpath 'net.researchgate:gradle-release:2.6.0'
+        classpath 'net.researchgate:gradle-release:2.7.0'
         classpath 'io.codearte.gradle.nexus:gradle-nexus-staging-plugin:0.11.0'
         classpath 'org.sonarsource.scanner.gradle:sonarqube-gradle-plugin:2.6.1'
         classpath 'gradle.plugin.com.github.lburgazzoli:gradle-karaf-plugin:0.1.1'
