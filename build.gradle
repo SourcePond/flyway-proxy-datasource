@@ -219,6 +219,9 @@ model {
     tasks.publishMavenJavaPublicationToMavenLocal {
         dependsOn project.tasks.withType(Sign)
     }
+    tasks.publishMavenJavaPublicationToMavenRepository {
+        dependsOn project.tasks.withType(Sign)
+    }
     tasks.signPom {
         dependsOn tasks.generatePomFileForMavenJavaPublication
     }
