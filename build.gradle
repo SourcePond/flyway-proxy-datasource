@@ -1,177 +1,199 @@
-allprojects {
-    group 'ch.sourcepond.jdbc'
-    version '0.1-SNAPSHOT'
+group 'ch.sourcepond.jdbc'
+version '0.1-SNAPSHOT'
 
-    apply plugin: 'signing'
-    apply plugin: 'net.researchgate.release'
-    apply plugin: 'io.codearte.nexus-staging'
-    apply plugin: 'org.sonarqube'
-    apply plugin: 'java'
-    apply plugin: 'maven'
-    apply plugin: 'biz.aQute.bnd.builder'
+apply plugin: 'java'
+apply plugin: 'signing'
+apply plugin: 'maven-publish'
+apply plugin: 'biz.aQute.bnd.builder'
+apply plugin: 'com.github.lburgazzoli.karaf'
+apply plugin: 'net.researchgate.release'
+apply plugin: 'io.codearte.nexus-staging'
+apply plugin: 'org.sonarqube'
 
-    sourceCompatibility = 1.8
+sourceCompatibility = 1.8
 
-    ext {
-        osgiVersion = '6.0.0'
-        paxExamVersion = '4.11.0'
-        logbackVersion = '1.1.3'
-        byteBuddyVersion = '1.8.12'
-    }
-
-    repositories {
-        mavenLocal()
-        mavenCentral()
-    }
-
-    dependencies {
-        compile "org.osgi:osgi.core:6.0.0"
-        compile 'org.slf4j:slf4j-api:1.7.25'
-        compile 'org.flywaydb:flyway-core:5.1.3'
-
-        testCompile "org.ops4j.pax.exam:pax-exam-container-native:$paxExamVersion"
-        testCompile "org.ops4j.pax.exam:pax-exam-junit4:$paxExamVersion"
-        testCompile "org.ops4j.pax.exam:pax-exam-link-mvn:$paxExamVersion"
-        testCompile "org.ops4j.pax.url:pax-url-aether:2.5.4"
-        testCompile "org.apache.felix:org.apache.felix.framework:5.6.10"
-        testCompile "ch.qos.logback:logback-core:$logbackVersion"
-        testCompile "ch.qos.logback:logback-classic:$logbackVersion"
-        testCompile 'javax.inject:javax.inject:1'
-        testCompile 'junit:junit:4.12'
-        testCompile 'org.mockito:mockito-core:2.19.0'
-        testCompile 'org.objenesis:objenesis:2.6'
-        testCompile "net.bytebuddy:byte-buddy:$byteBuddyVersion"
-        testCompile "net.bytebuddy:byte-buddy-agent:$byteBuddyVersion"
-        testCompile 'com.h2database:h2:1.4.197'
-    }
-
-    jar {
-        manifest {
-            attributes('Bundle-Activator': 'ch.sourcepond.jdbc.flyway.Activator')
-        }
-    }
-
-    task generateDependsFile {
-        // In order to fully use org.ops4j.pax.exam.CoreOptions.maven() stuff
-        // we need to generate a META-INF/maven/dependencies.properties file
-        // just like the generate-depends-file Maven goal from ServiceMix/Karaf
-
-        File outputFileDir = project.file("${project.buildDir}/classes/java/test/META-INF/maven/")
-        File outputFile = new File(outputFileDir, 'dependencies.properties')
-
-        outputs.file outputFile
-
-        doFirst {
-            outputFileDir.mkdirs()
-
-            Properties properties = new Properties();
-
-            // first we add our GAV info
-            properties.setProperty("groupId", "${project.group}");
-            properties.setProperty("artifactId", project.name);
-            properties.setProperty("version", "${project.version}");
-            properties.setProperty("${project.group}/${project.name}/version", "${project.version}");
-
-            // then for all our deps
-            project.configurations.testCompile.resolvedConfiguration.resolvedArtifacts.each {
-                final String keyBase = it.moduleVersion.id.group + '/' + it.moduleVersion.id.name;
-                properties.setProperty("${keyBase}/scope", "compile")
-                properties.setProperty("${keyBase}/type", it.extension)
-                properties.setProperty("${keyBase}/version", it.moduleVersion.id.version)
-
-                if (it.classifier) {
-                    properties.setProperty("${keyBase}/classifier", it.classifier)
-                }
-            }
-
-            FileOutputStream outputStream = new FileOutputStream(outputFile);
-            try {
-                properties.store(outputStream, "Generated from Gradle by Hibernate build for PaxExam testing of hibernate-osgi module")
-            }
-            finally {
-                outputStream.close()
-            }
-        }
-    }
-
-    task copyIntegrationTestArtifacts(type: Copy) {
-        from jar // here it automatically reads jar file produced from jar task
-        into 'build/paxexam'
-        rename { String fileName ->
-            "examinee.jar"
-        }
-    }
-
-    // OSSRH
-    task javadocJar(type: Jar) {
-        classifier = 'javadoc'
-        from javadoc
-    }
-
-    task sourcesJar(type: Jar) {
-        classifier = 'sources'
-        from sourceSets.main.allSource
-    }
-
-    artifacts {
-        archives javadocJar, sourcesJar
-    }
-
-    signing {
-        sign configurations.archives
-    }
-
-    uploadArchives {
-        repositories {
-            mavenDeployer {
-                beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
-
-                repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
-                    authentication(userName: ossrhUsername, password: ossrhPassword)
-                }
-
-                snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
-                    authentication(userName: ossrhUsername, password: ossrhPassword)
-                }
-
-                pom.project {
-                    name 'Flyway Proxy Datasource'
-                    packaging 'jar'
-                    // optionally artifactId can be defined here
-                    description 'OSGi bundle which creates for any javax.sql.DataSource an appropriate proxy which wraps a Flyway DB-migration'
-                    url 'scm:git:https://github.com/SourcePond/flyway-proxy-datasource.git'
-
-                    scm {
-                        connection 'scm:git:https://github.com/SourcePond/flyway-proxy-datasource.git'
-                        developerConnection 'scm:git:ssh:git@github.com:SourcePond/flyway-proxy-datasource.git'
-                        url 'https://github.com/SourcePond/flyway-proxy-datasource.git'
-                    }
-
-                    licenses {
-                        license {
-                            name 'The Apache License, Version 2.0'
-                            url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
-                        }
-                    }
-
-                    developers {
-                        developer {
-                            id 'roland'
-                            name 'Roland Hauser'
-                            email 'sourcepond@gmail.com'
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    build.dependsOn install
-    afterReleaseBuild.dependsOn uploadArchives
-
-    test.outputs.upToDateWhen { false }
-    test.dependsOn(assemble, generateDependsFile, copyIntegrationTestArtifacts)
+ext {
+    osgiVersion = '6.0.0'
+    paxExamVersion = '4.11.0'
+    logbackVersion = '1.1.3'
+    byteBuddyVersion = '1.8.12'
 }
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+dependencies {
+    compile 'org.flywaydb:flyway-core:5.1.3'
+    compileOnly 'org.osgi:osgi.core:6.0.0'
+    compileOnly 'org.slf4j:slf4j-api:1.7.25'
+
+    testCompile "org.ops4j.pax.exam:pax-exam-container-native:$paxExamVersion"
+    testCompile "org.ops4j.pax.exam:pax-exam-junit4:$paxExamVersion"
+    testCompile "org.ops4j.pax.exam:pax-exam-link-mvn:$paxExamVersion"
+    testCompile "org.ops4j.pax.url:pax-url-aether:2.5.4"
+    testCompile "org.apache.felix:org.apache.felix.framework:5.6.10"
+    testCompile "ch.qos.logback:logback-core:$logbackVersion"
+    testCompile "ch.qos.logback:logback-classic:$logbackVersion"
+    testCompile 'javax.inject:javax.inject:1'
+    testCompile 'junit:junit:4.12'
+    testCompile 'org.mockito:mockito-core:2.19.0'
+    testCompile 'org.objenesis:objenesis:2.6'
+    testCompile "net.bytebuddy:byte-buddy:$byteBuddyVersion"
+    testCompile "net.bytebuddy:byte-buddy-agent:$byteBuddyVersion"
+    testCompile 'com.h2database:h2:1.4.197'
+}
+
+jar {
+    manifest {
+        attributes('Bundle-Activator': 'ch.sourcepond.jdbc.flyway.Activator')
+    }
+}
+
+karaf {
+    features {
+        xsdVersion = '1.4.0'
+        version = project.version
+        description = "Repository for $project.name"
+        name = "${project.group}.${project.name}"
+
+        includeProject = true
+
+        feature {
+            name = project.name
+            version = project.version
+            description = project.description
+
+            bundle ('org.flywaydb') {
+                attribute 'start-level', '15'
+            }
+
+            bundle ('ch.sourcepond.jdbc') {
+                attribute 'start-level', '15'
+            }
+        }
+    }
+}
+
+// ------ Testing tasks ------
+
+task generateDependsFile {
+    // In order to fully use org.ops4j.pax.exam.CoreOptions.maven() stuff
+    // we need to generate a META-INF/maven/dependencies.properties file
+    // just like the generate-depends-file Maven goal from ServiceMix/Karaf
+
+    File outputFileDir = project.file("${project.buildDir}/classes/java/test/META-INF/maven/")
+    File outputFile = new File(outputFileDir, 'dependencies.properties')
+
+    outputs.file outputFile
+
+    doFirst {
+        outputFileDir.mkdirs()
+
+        Properties properties = new Properties();
+
+        // first we add our GAV info
+        properties.setProperty("groupId", "${project.group}");
+        properties.setProperty("artifactId", project.name);
+        properties.setProperty("version", "${project.version}");
+        properties.setProperty("${project.group}/${project.name}/version", "${project.version}");
+
+        // then for all our deps
+        project.configurations.testCompile.resolvedConfiguration.resolvedArtifacts.each {
+            final String keyBase = it.moduleVersion.id.group + '/' + it.moduleVersion.id.name;
+            properties.setProperty("${keyBase}/scope", "compile")
+            properties.setProperty("${keyBase}/type", it.extension)
+            properties.setProperty("${keyBase}/version", it.moduleVersion.id.version)
+
+            if (it.classifier) {
+                properties.setProperty("${keyBase}/classifier", it.classifier)
+            }
+        }
+
+        FileOutputStream outputStream = new FileOutputStream(outputFile);
+        try {
+            properties.store(outputStream, "Generated from Gradle by Hibernate build for PaxExam testing of hibernate-osgi module")
+        }
+        finally {
+            outputStream.close()
+        }
+    }
+}
+
+task copyIntegrationTestArtifacts(type: Copy) {
+    from jar // here it automatically reads jar file produced from jar task
+    into 'build/paxexam'
+    rename { String fileName ->
+        "examinee.jar"
+    }
+}
+
+// ------ OSSRH Tasks ------
+
+task sourceJar(type: Jar) {
+    classifier "sources"
+    from sourceSets.main.allJava
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier "javadoc"
+    from javadoc.destinationDir
+}
+
+artifacts {
+    archives jar
+    archives sourceJar
+    archives javadocJar
+}
+
+signing {
+    sign configurations.archives
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+
+            artifact(source: "$buildDir/karaf/features/$project.name-${project.version}.xml", classifier: 'features') {
+                builtBy tasks.build
+            }
+            artifact(sourceJar) {
+                classifier = 'sources'
+            }
+            artifact(javadocJar) {
+                classifier = 'javadoc'
+            }
+
+            // create the signed artifacts
+            project.tasks.signArchives.signatureFiles.each {
+                artifact(it) {
+                    if (it.file.name.endsWith('.xml.asc')) {
+                        classifier = 'features'
+                        extension = 'xml.asc'
+                    } else {
+                        def matcher = it.file =~ /-(sources|javadoc)\.jar\.asc$/
+                        if (matcher.find()) {
+                            classifier = matcher.group(1)
+                        } else {
+                            classifier = null
+                        }
+                        extension = 'jar.asc'
+                    }
+                }
+            }
+        }
+    }
+}
+
+publishToMavenLocal.dependsOn signArchives
+
+afterReleaseBuild.dependsOn uploadArchives
+
+test.outputs.upToDateWhen { false }
+test.dependsOn(assemble, generateDependsFile, copyIntegrationTestArtifacts)
+
 
 nexusStaging {
     packageGroup 'ch.sourcepond'
@@ -189,5 +211,6 @@ buildscript {
         classpath 'net.researchgate:gradle-release:2.6.0'
         classpath 'io.codearte.gradle.nexus:gradle-nexus-staging-plugin:0.11.0'
         classpath 'org.sonarsource.scanner.gradle:sonarqube-gradle-plugin:2.6.1'
+        classpath 'gradle.plugin.com.github.lburgazzoli:gradle-karaf-plugin:0.1.1'
     }
 }
