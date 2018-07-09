@@ -16,6 +16,11 @@ ext {
     paxExamVersion = '4.11.0'
     logbackVersion = '1.1.3'
     byteBuddyVersion = '1.8.12'
+
+    repositoryName = "${project.name}.git".toString()
+    repositoryUrl = "https://github.com/SourcePond/$repositoryName".toString()
+    repositoryConnection = "scm:git:https://github.com/SourcePond/$repositoryName".toString()
+    repositoryDeveloperConnection = "scm:git:ssh:git@github.com:SourcePond/$repositoryName".toString()
 }
 
 repositories {
@@ -168,6 +173,33 @@ publishing {
     publications {
         mavenJava(MavenPublication) {
             from components.java
+
+            pom {
+                name = project.name
+                description = 'OSGi bundle which creates for any javax.sql.DataSource an appropriate proxy which wraps a Flyway DB-migration'
+                url = repositoryConnection
+
+                scm {
+                    connection = repositoryConnection
+                    developerConnection = repositoryDeveloperConnection
+                    url = repositoryUrl
+                }
+
+                licenses {
+                    license {
+                        name = 'The Apache License, Version 2.0'
+                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    }
+                }
+
+                developers {
+                    developer {
+                        id = 'roland'
+                        name = 'Roland Hauser'
+                        email = 'sourcepond@gmail.com'
+                    }
+                }
+            }
 
             artifact(source: "$buildDir/karaf/features/$project.name-${project.version}.xml", classifier: 'features') {
                 builtBy tasks.build
