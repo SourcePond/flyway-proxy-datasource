@@ -1,5 +1,4 @@
 group 'ch.sourcepond.jdbc'
-version '0.1-SNAPSHOT'
 
 apply plugin: 'java'
 apply plugin: 'signing'
